@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using WandEnhancer.Core;
 using WandEnhancer.Core.Services;
@@ -239,12 +241,32 @@ namespace WandEnhancer.View.MainWindow
         {
             try
             {
-                System.Windows.Clipboard.SetText(BuildLogReport());
+                SetClipboardTextWithRetry(BuildLogReport());
                 Log(LocalizationManager.Get("log_copied"), ELogType.Success);
             }
             catch (Exception e)
             {
                 Log(LocalizationManager.Format("log_copy_failed", e.Message), ELogType.Error);
+            }
+        }
+
+        // Windows briefly denies clipboard access while another process (a clipboard
+        // manager, remote desktop, etc.) holds it open; a short retry clears almost every case.
+        private static void SetClipboardTextWithRetry(string text)
+        {
+            const int attempts = 5;
+            const int delayMs = 100;
+            for (int attempt = 1; attempt <= attempts; attempt++)
+            {
+                try
+                {
+                    System.Windows.Clipboard.SetText(text);
+                    return;
+                }
+                catch (COMException) when (attempt < attempts)
+                {
+                    Thread.Sleep(delayMs);
+                }
             }
         }
 
